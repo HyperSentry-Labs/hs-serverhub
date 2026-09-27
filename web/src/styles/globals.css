@@ -1,0 +1,81 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Design direction: a technical, restrained "sentry console" - not a pause
+  menu, not a SaaS dashboard. Deep neutral surfaces, one warm accent for
+  active/primary state, a cool secondary for links/info, hairline borders
+  instead of shadows, and a monospace face reserved for literal tokens
+  (commands, keys, version numbers) since those are data, not decoration.
+
+  --hs-accent / --hs-accent-secondary are overwritten at runtime from
+  Config.General.AccentColor / AccentColorSecondary (see App.tsx) - the
+  values below are only the fallback before content loads.
+*/
+:root {
+  --hs-bg: #0f1216;
+  --hs-panel: #14171d;
+  --hs-panel-raised: #1b1f27;
+  --hs-border: #262b34;
+  --hs-text: #e8eaed;
+  --hs-text-muted: #939ba6;
+  --hs-accent: #e3a857;
+  --hs-accent-secondary: #5fb3b3;
+  --hs-status-online: #6fcf7b;
+  --hs-status-warn: #e3a857;
+  --hs-status-critical: #e2695c;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: transparent;
+  color: var(--hs-text);
+  font-feature-settings: 'tnum' 1;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* The FiveM CEF surface is transparent-by-default across the whole game
+   view; ServerHub must not paint anything while closed. */
+body.hs-closed {
+  background: transparent;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--hs-accent) 35%, transparent);
+}
+
+/* Thin, quiet scrollbars - a dense information hub scrolls a lot. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--hs-border) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--hs-border);
+  border-radius: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+.hs-focus-ring:focus-visible {
+  outline: 2px solid var(--hs-accent);
+  outline-offset: 2px;
+}

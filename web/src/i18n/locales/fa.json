@@ -1,0 +1,46 @@
+{
+  "app.searchPlaceholder": "جستجو در قوانین، دستورات، کلیدها...",
+  "app.close": "بستن",
+  "app.refresh": "به‌روزرسانی",
+  "app.noSearchResults": "نتیجه‌ای برای «{query}» پیدا نشد",
+
+  "nav.overview": "نمای کلی",
+  "nav.rules": "قوانین",
+  "nav.commands": "دستورات",
+  "nav.keybinds": "کلیدهای میانبر",
+  "nav.gettingStarted": "شروع کار",
+  "nav.news": "اخبار",
+  "nav.community": "انجمن",
+
+  "status.online": "آنلاین",
+  "status.players": "بازیکنان",
+  "status.uptime": "مدت فعالیت",
+  "status.resources": "منابع",
+  "status.running": "فعال",
+  "status.stopped": "غیرفعال",
+
+  "overview.quickAccess": "دسترسی سریع",
+  "overview.latestAnnouncement": "آخرین اطلاعیه",
+  "overview.community": "انجمن",
+  "overview.noAnnouncement": "هنوز اطلاعیه‌ای ثبت نشده است.",
+
+  "rules.searchPlaceholder": "جستجو در قوانین...",
+  "rules.empty": "هنوز قانونی تنظیم نشده است.",
+  "rules.allCategories": "همه",
+
+  "commands.searchPlaceholder": "جستجو در دستورات...",
+  "commands.empty": "هنوز دستوری تنظیم نشده است.",
+  "commands.aliasLabel": "همچنین",
+
+  "keybinds.searchPlaceholder": "جستجو در کلیدها...",
+  "keybinds.empty": "هنوز کلیدی تنظیم نشده است.",
+
+  "gettingStarted.empty": "هنوز مرحله‌ای برای شروع کار تنظیم نشده است.",
+
+  "news.empty": "هنوز اطلاعیه‌ای ثبت نشده است.",
+  "news.searchPlaceholder": "جستجو در اخبار...",
+
+  "community.empty": "هنوز لینکی برای انجمن تنظیم نشده است.",
+
+  "common.openSection": "باز کردن {section}"
+}

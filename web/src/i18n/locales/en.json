@@ -1,0 +1,46 @@
+{
+  "app.searchPlaceholder": "Search rules, commands, keybinds...",
+  "app.close": "Close",
+  "app.refresh": "Refresh",
+  "app.noSearchResults": "No results for \"{query}\"",
+
+  "nav.overview": "Overview",
+  "nav.rules": "Rules",
+  "nav.commands": "Commands",
+  "nav.keybinds": "Keybinds",
+  "nav.gettingStarted": "Getting Started",
+  "nav.news": "News",
+  "nav.community": "Community",
+
+  "status.online": "Online",
+  "status.players": "Players",
+  "status.uptime": "Uptime",
+  "status.resources": "Resources",
+  "status.running": "Running",
+  "status.stopped": "Stopped",
+
+  "overview.quickAccess": "Quick access",
+  "overview.latestAnnouncement": "Latest announcement",
+  "overview.community": "Community",
+  "overview.noAnnouncement": "No announcements yet.",
+
+  "rules.searchPlaceholder": "Search rules...",
+  "rules.empty": "No rules configured yet.",
+  "rules.allCategories": "All",
+
+  "commands.searchPlaceholder": "Search commands...",
+  "commands.empty": "No commands configured yet.",
+  "commands.aliasLabel": "Also",
+
+  "keybinds.searchPlaceholder": "Search keybinds...",
+  "keybinds.empty": "No keybinds configured yet.",
+
+  "gettingStarted.empty": "No getting-started steps configured yet.",
+
+  "news.empty": "No announcements yet.",
+  "news.searchPlaceholder": "Search news...",
+
+  "community.empty": "No community links configured yet.",
+
+  "common.openSection": "Open {section}"
+}
