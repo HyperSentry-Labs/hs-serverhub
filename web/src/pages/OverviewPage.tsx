@@ -1,130 +1,205 @@
-import { ExternalLink as ExternalLinkIcon } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
+import { useMemo } from 'react';
 import { ExternalLink } from '../components/ExternalLink';
+import { PinnedRow, QuickActionTile, ResourceChip, SectionLabel, Stat } from '../components/OverviewParts';
 import { Panel } from '../components/Panel';
+import { ProgressBar } from '../components/ProgressBar';
 import { StatusPill } from '../components/StatusPill';
-import { formatDate, formatUptime } from '../lib/format';
-import { getIcon } from '../lib/icons';
+import { NewsCard } from './NewsPage';
+import type { FavoritesApi } from '../hooks/useFavorites';
 import { useI18n } from '../hooks/useI18n';
+import type { ProgressApi } from '../hooks/useProgress';
+import { formatUptime, pickFeaturedNews } from '../lib/format';
+import { getIcon } from '../lib/icons';
+import { resolvePinned } from '../lib/pinned';
 import type { ContentPayload, SectionId, StatusSnapshot } from '../types/content';
 
 interface Props {
   content: ContentPayload;
   status: StatusSnapshot | null;
-  onNavigate: (section: SectionId) => void;
+  favorites: FavoritesApi;
+  progress: ProgressApi;
+  onNavigate: (section: SectionId, highlightId?: string) => void;
 }
 
-export function OverviewPage({ content, status, onNavigate }: Props) {
+/** Home screen: identity -> live state -> quick actions -> what's new / next -> pinned -> community. */
+export function OverviewPage({ content, status, favorites, progress, onNavigate }: Props) {
   const { t } = useI18n();
   const { overview, general } = content;
-  const latestAnnouncement = overview.ShowLatestAnnouncement ? content.news.items[0] : undefined;
-  const showStats = overview.ShowLiveStats && content.status.enabled && status;
+
+  const announcement = overview.ShowLatestAnnouncement ? pickFeaturedNews(content.news.items) : undefined;
+  const showLive = overview.ShowLiveStats && content.status.enabled;
+  const pinned = useMemo(() => resolvePinned(content, favorites.favorites), [content, favorites.favorites]);
+  const communityLinks = useMemo(
+    () => (content.community.links.length > 0 ? content.community.links : content.community.groups.flatMap((g) => g.links)).slice(0, 4),
+    [content.community],
+  );
+
+  const steps = content.gettingStarted.steps;
+  const showGuide = content.gettingStarted.enableProgress && steps.length > 0;
+  const done = steps.filter((s) => progress.completed.has(s.id)).length;
+  const nextStep = steps.find((s) => !progress.completed.has(s.id));
 
   return (
     <div className="flex flex-col gap-6">
-      <Panel className="p-6">
-        <h2 className="text-xl font-semibold text-base-text">Welcome to {general.ServerName}</h2>
-        {general.Description && <p className="mt-2 max-w-2xl text-sm text-base-muted">{general.Description}</p>}
+      <Panel className="p-5 sm:p-6">
+        <h2 className="break-words text-xl font-semibold tracking-tight text-base-text">
+          {t('overview.welcome', { name: general.ServerName })}
+        </h2>
+        {general.Subtitle && <p className="mt-0.5 break-words text-sm text-accent">{general.Subtitle}</p>}
+        {general.Description && <p className="mt-3 max-w-2xl break-words text-sm leading-relaxed text-base-muted">{general.Description}</p>}
 
-        {showStats && (
-          <div className="mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-base-border pt-4">
-            <StatusPill online label={t('status.online')} />
-            <Stat label={t('status.players')} value={`${status!.online} / ${status!.max}`} />
-            {content.status.showUptime && status!.uptimeSeconds !== undefined && (
-              <Stat label={t('status.uptime')} value={formatUptime(status!.uptimeSeconds)} />
+        {showLive && (
+          <div className="mt-5 flex flex-col gap-3 border-t border-base-border pt-4">
+            {status ? (
+              <>
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+                  <StatusPill state="online" label={t('status.online')} />
+                  <Stat label={t('status.players')} value={`${status.online} / ${status.max}`} />
+                  {content.status.showUptime && status.uptimeSeconds !== undefined && (
+                    <Stat label={t('status.uptime')} value={formatUptime(status.uptimeSeconds)} />
+                  )}
+                  {content.stats.map((stat) => (
+                    <Stat key={stat.key} label={stat.label} value={String(stat.value)} />
+                  ))}
+                </div>
+                {status.max > 0 && (
+                  <ProgressBar value={status.online} max={status.max} label={t('status.players')} />
+                )}
+                {status.monitoredResources.length > 0 && (
+                  <ul aria-label={t('status.resources')} className="flex flex-wrap gap-2">
+                    {status.monitoredResources.map((res) => (
+                      <ResourceChip key={res.name} name={res.name} state={res.state} />
+                    ))}
+                  </ul>
+                )}
+              </>
+            ) : (
+              <StatusPill state="unknown" label={t('status.unavailable')} />
             )}
-            {status!.monitoredResources.length > 0 && (
-              <div className="flex flex-wrap items-center gap-3">
-                {status!.monitoredResources.map((res) => (
-                  <span key={res.name} className="flex items-center gap-1.5 text-xs text-base-muted">
-                    <span
-                      className={`h-1.5 w-1.5 rounded-full ${res.running ? 'bg-status-online' : 'bg-status-critical'}`}
-                    />
-                    <span className="font-mono">{res.name}</span>
-                  </span>
-                ))}
-              </div>
-            )}
-            {content.stats.map((stat) => (
-              <Stat key={stat.key} label={stat.label} value={String(stat.value)} />
-            ))}
           </div>
         )}
       </Panel>
 
       {overview.QuickLinks.length > 0 && (
-        <div>
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-base-muted">
-            {t('overview.quickAccess')}
-          </p>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {overview.QuickLinks.map((ql) => {
-              const Icon = getIcon(ql.icon);
-              return (
-                <button
-                  key={ql.id}
-                  type="button"
-                  onClick={() => onNavigate(ql.target)}
-                  className="hs-focus-ring flex flex-col items-center gap-2 rounded-hs border border-base-border bg-base-panel p-4 text-center transition-colors hover:border-accent/50 hover:bg-base-panel-raised"
-                >
-                  <Icon className="h-5 w-5 text-accent" aria-hidden="true" />
-                  <span className="text-sm text-base-text">{ql.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        <section>
+          <SectionLabel>{t('overview.quickAccess')}</SectionLabel>
+          <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+            {overview.QuickLinks.map((link) => (
+              <li key={link.id}>
+                <QuickActionTile link={link} onNavigate={onNavigate} />
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div>
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-base-muted">
-            {t('overview.latestAnnouncement')}
-          </p>
-          {latestAnnouncement ? (
-            <Panel className="p-4">
-              <div className="flex items-center gap-2 text-xs text-base-muted">
-                <span>{formatDate(latestAnnouncement.date)}</span>
-                {latestAnnouncement.category && (
-                  <span className="rounded-full border border-base-border px-2 py-0.5">
-                    {latestAnnouncement.category}
-                  </span>
-                )}
-              </div>
-              <p className="mt-1.5 text-sm font-medium text-base-text">{latestAnnouncement.title}</p>
-              <p className="mt-1 text-sm text-base-muted">{latestAnnouncement.description}</p>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {overview.ShowLatestAnnouncement && (
+          <section>
+            <SectionLabel
+              actions={
+                <button type="button" onClick={() => onNavigate('news')} className="hs-focus-ring rounded text-xs text-accent hover:underline">
+                  {t('overview.viewAll')}
+                </button>
+              }
+            >
+              {t(announcement?.featured ? 'overview.featuredAnnouncement' : 'overview.latestAnnouncement')}
+            </SectionLabel>
+            {announcement ? (
+              <NewsCard item={announcement} clamp />
+            ) : (
+              <Panel className="p-4 text-sm text-base-muted">{t('overview.noAnnouncement')}</Panel>
+            )}
+          </section>
+        )}
+
+        {showGuide && (
+          <section>
+            <SectionLabel
+              actions={
+                <button type="button" onClick={() => onNavigate('getting-started')} className="hs-focus-ring rounded text-xs text-accent hover:underline">
+                  {t('overview.viewAll')}
+                </button>
+              }
+            >
+              {t('overview.gettingStarted')}
+            </SectionLabel>
+            <Panel className="flex flex-col gap-3 p-4">
+              <ProgressBar value={done} max={steps.length} label={t('overview.progress', { done, total: steps.length })} />
+              {nextStep ? (
+                <button
+                  type="button"
+                  onClick={() => onNavigate('getting-started', nextStep.id)}
+                  className="hs-focus-ring flex items-center gap-2 rounded-hs border border-base-border px-3 py-2 text-start text-sm text-base-text transition-colors hover:border-accent/50"
+                >
+                  {(() => {
+                    const Icon = getIcon(nextStep.icon);
+                    return <Icon className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />;
+                  })()}
+                  <span className="min-w-0 flex-1 truncate">{t('overview.nextStep', { title: nextStep.title })}</span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-base-muted rtl:rotate-180" aria-hidden="true" />
+                </button>
+              ) : (
+                <p className="text-sm text-base-muted">{t('overview.allDone')}</p>
+              )}
             </Panel>
-          ) : (
-            <Panel className="p-4 text-sm text-base-muted">{t('overview.noAnnouncement')}</Panel>
-          )}
-        </div>
-
-        <div>
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-base-muted">
-            {t('overview.community')}
-          </p>
-          <Panel className="flex flex-col divide-y divide-base-border">
-            {content.community.links.slice(0, 3).map((link) => (
-              <ExternalLink
-                key={link.id}
-                href={link.url}
-                className="flex items-center justify-between gap-2 px-4 py-3 text-sm text-base-text hover:text-accent"
-              >
-                {link.label}
-                <ExternalLinkIcon className="h-3.5 w-3.5 text-base-muted" aria-hidden="true" />
-              </ExternalLink>
-            ))}
-          </Panel>
-        </div>
+          </section>
+        )}
       </div>
+
+      {pinned.length > 0 && (
+        <section>
+          <SectionLabel
+            actions={
+              <button type="button" onClick={favorites.clear} className="hs-focus-ring rounded text-xs text-base-muted hover:text-base-text">
+                {t('overview.clearPinned')}
+              </button>
+            }
+          >
+            {t('overview.pinned')}
+          </SectionLabel>
+          <Panel>
+            <ul className="divide-y divide-base-border">
+              {pinned.map((item) => (
+                <PinnedRow
+                  key={`${item.ref.kind}:${item.ref.id}`}
+                  item={item}
+                  onOpen={() => onNavigate(item.section, item.ref.id)}
+                  onUnpin={() => favorites.toggle(item.ref)}
+                />
+              ))}
+            </ul>
+          </Panel>
+        </section>
+      )}
+
+      {communityLinks.length > 0 && (
+        <section>
+          <SectionLabel
+            actions={
+              <button type="button" onClick={() => onNavigate('community')} className="hs-focus-ring rounded text-xs text-accent hover:underline">
+                {t('overview.viewAll')}
+              </button>
+            }
+          >
+            {t('overview.community')}
+          </SectionLabel>
+          <Panel>
+            <ul className="divide-y divide-base-border">
+              {communityLinks.map((link) => (
+                <li key={link.id}>
+                  <ExternalLink href={link.url} className="hs-focus-ring flex items-center justify-between gap-2 px-4 py-2.5 text-sm text-base-text transition-colors hover:text-accent">
+                    <span className="truncate">{link.label}</span>
+                    <span className="sr-only">({t('common.opensExternally')})</span>
+                  </ExternalLink>
+                </li>
+              ))}
+            </ul>
+          </Panel>
+        </section>
+      )}
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline gap-1.5 text-sm">
-      <span className="font-mono text-base-text">{value}</span>
-      <span className="text-xs text-base-muted">{label}</span>
-    </div>
-  );
-}

@@ -1,4 +1,4 @@
-import type { NuiMessage, NuiMessageHandler, ServerHubBridge } from './types';
+import type { NuiCallbackName, NuiCallbackResult, NuiMessage, NuiMessageHandler, ServerHubBridge } from './types';
 
 declare global {
   interface Window {
@@ -6,6 +6,11 @@ declare global {
     GetParentResourceName?: () => string;
   }
 }
+
+/** A NUI callback that has not answered in this long is treated as failed. */
+export const CALLBACK_TIMEOUT_MS = 4000;
+
+const MESSAGE_TYPES: readonly string[] = ['open', 'close', 'bootstrap', 'contentUpdate', 'statusUpdate'];
 
 function getParentResourceName(): string {
   try {
@@ -15,19 +20,52 @@ function getParentResourceName(): string {
   }
 }
 
-/** Fire-and-forget POST to a client.lua NUI callback. Never throws. */
-async function post(callbackName: string, body: unknown = {}): Promise<void> {
+/**
+ * POSTs to a client.lua NUI callback. This is the ONLY place the UI calls
+ * `fetch`. It never throws and never hangs: a timeout or network failure
+ * resolves with `{ ok: false, reason }` so callers can ignore or react.
+ * Failures are logged once at warn level (rare - callbacks are user
+ * initiated, never per tick); success is silent.
+ */
+export async function postCallback(
+  name: NuiCallbackName,
+  body: unknown = {},
+  timeoutMs: number = CALLBACK_TIMEOUT_MS,
+): Promise<NuiCallbackResult> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    await fetch(`https://${getParentResourceName()}/${callbackName}`, {
+    const response = await fetch(`https://${getParentResourceName()}/${name}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json; charset=UTF-8' },
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
-  } catch {
-    // The NUI callback endpoint can be briefly unavailable during a resource
-    // restart. ServerHub degrades silently rather than throwing in the UI -
-    // see the error-handling philosophy in the README.
+    if (!response.ok) {
+      console.warn(`[hs-serverhub] NUI callback "${name}" returned HTTP ${response.status}`);
+      return { ok: false, reason: 'http' };
+    }
+    return { ok: true };
+  } catch (error) {
+    const timedOut = controller.signal.aborted;
+    // The endpoint can be briefly unavailable during a resource restart.
+    console.warn(
+      `[hs-serverhub] NUI callback "${name}" ${timedOut ? 'timed out' : 'failed'}` +
+        (timedOut ? '' : `: ${error instanceof Error ? error.message : String(error)}`),
+    );
+    return { ok: false, reason: timedOut ? 'timeout' : 'network' };
+  } finally {
+    clearTimeout(timer);
   }
+}
+
+function isNuiMessage(data: unknown): data is NuiMessage {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    typeof (data as { type?: unknown }).type === 'string' &&
+    MESSAGE_TYPES.includes((data as { type: string }).type)
+  );
 }
 
 export function createFiveMBridge(): ServerHubBridge {
@@ -35,21 +73,20 @@ export function createFiveMBridge(): ServerHubBridge {
     isFiveM: true,
 
     onMessage(handler: NuiMessageHandler) {
-      const listener = (event: MessageEvent<NuiMessage>) => {
-        if (event.data && typeof event.data.type === 'string') {
-          handler(event.data);
-        }
+      const listener = (event: MessageEvent<unknown>) => {
+        // Messages from other NUI sources (or malformed ones) are ignored.
+        if (isNuiMessage(event.data)) handler(event.data);
       };
       window.addEventListener('message', listener);
       return () => window.removeEventListener('message', listener);
     },
 
     async close() {
-      await post('close');
+      await postCallback('close');
     },
 
     async refresh() {
-      await post('refresh');
+      await postCallback('refresh');
     },
   };
 }

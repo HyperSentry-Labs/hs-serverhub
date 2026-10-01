@@ -12,8 +12,9 @@ self-contained change.
   `translate(dictionary, key, vars)`, which falls back to the English
   string (and finally to the raw key) if a translation is missing - a
   partially-translated locale never breaks the UI.
-- `web/src/hooks/useI18n.tsx` provides a `useI18n()` hook returning
-  `{ t, dir, language }`. Components call `t('some.key')`.
+- `web/src/hooks/useI18n.ts` provides a `useI18n()` hook returning
+  `{ t, dir, language }`, backed by `components/I18nProvider.tsx`.
+  Components call `t('some.key')`.
 - `Config.General.Language` in `config.lua` picks the active locale.
   Persian is available but **is not the default** - English is, per the
   product brief.
@@ -54,3 +55,16 @@ Every `t()` key that renders as an `aria-label` or similar (e.g. the close
 button, "clear search") is part of the same dictionaries, so a translated
 locale is fully translated for assistive technology too, not just visible
 text.
+
+## What v0.2.0 improved
+
+- Cross-section search, category filters, badges (severity/priority), and
+  the pinned-items list all now mirror correctly in RTL - previously only
+  the page shell direction was verified.
+- `src/i18n/i18n.test.ts` asserts every locale has exactly the same set of
+  keys and `{placeholder}` tokens as English, so a missing or mistyped key
+  in a translation fails the test suite instead of silently falling back
+  at runtime.
+- `?fixture=rtl` in browser development (see `docs/development.md`) loads
+  a small Persian content set specifically for reviewing RTL layout,
+  independent of `config.lua`.

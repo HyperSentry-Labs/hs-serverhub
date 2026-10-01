@@ -9,9 +9,11 @@
   instead of shadows, and a monospace face reserved for literal tokens
   (commands, keys, version numbers) since those are data, not decoration.
 
-  --hs-accent / --hs-accent-secondary are overwritten at runtime from
-  Config.General.AccentColor / AccentColorSecondary (see App.tsx) - the
-  values below are only the fallback before content loads.
+  The accent and every surface/text token below are overwritten at runtime
+  from Config.General.AccentColor / AccentColorSecondary and Config.Theme
+  (validated in lua/validate.lua and lib/color.ts; see App.tsx). The values
+  here are the built-in HyperSentry defaults and the fallback for any
+  invalid or missing config value.
 */
 :root {
   --hs-bg: #0f1216;
@@ -21,6 +23,7 @@
   --hs-text: #e8eaed;
   --hs-text-muted: #939ba6;
   --hs-accent: #e3a857;
+  --hs-accent-hover: #f0ba70;
   --hs-accent-secondary: #5fb3b3;
   --hs-status-online: #6fcf7b;
   --hs-status-warn: #e3a857;
@@ -78,4 +81,42 @@ body.hs-closed {
 .hs-focus-ring:focus-visible {
   outline: 2px solid var(--hs-accent);
   outline-offset: 2px;
+}
+
+/* Search-result / pinned-item navigation: a brief ring, not a flashing banner. */
+.hs-highlight {
+  border-radius: 8px;
+  animation: hs-ring 1.6s ease-out 1;
+}
+@keyframes hs-ring {
+  0%,
+  60% {
+    box-shadow: 0 0 0 2px var(--hs-accent);
+  }
+  100% {
+    box-shadow: 0 0 0 2px transparent;
+  }
+}
+
+/* Section change: a very short fade so the content swap doesn't feel abrupt. */
+.hs-fade-in {
+  animation: hs-fade 120ms ease-out 1;
+}
+@keyframes hs-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hs-highlight {
+    animation: none;
+    box-shadow: 0 0 0 2px var(--hs-accent);
+  }
+  .hs-fade-in {
+    animation: none;
+  }
 }

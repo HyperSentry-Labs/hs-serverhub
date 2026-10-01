@@ -9,22 +9,36 @@
     - IDs are shared between static Config entries and dynamic registrations,
       so a resource can never silently overwrite a server-owner-authored
       command/keybind/rule by reusing its id.
-    - There is no `RegisterPage` export in v1. Accepting arbitrary external
-      HTML/content into the NUI would mean either trusting other resources'
-      markup (a real injection risk, see point 27 of the brief/README
-      security notes) or building a whole mini content-schema for free-form
-      pages - both are out of scope for an information hub. `AddAnnouncement`
-      and `SetStat` cover the realistic "another resource wants to show
-      something" use cases without that risk.
+    - v0.2.0: every dynamic registration now records an `owner` - the name
+      of the resource that called the export (see `GetInvokingResource()`
+      in server.lua). RemoveEntry and the new Update* exports check that
+      the caller's owner matches before touching an entry, so resource A
+      can never edit or remove resource B's registration by guessing its
+      id. `owner` defaults to the string 'unknown' when called with no
+      owner (e.g. the standalone test suite below, which predates ownership
+      and intentionally keeps calling these functions without it) so that
+      two anonymous calls still consistently match each other.
+    - A dynamically-registered keybind with no explicit `resource` field is
+      stamped with its owner automatically, so "Resource: my-police" shows
+      up in the Keybinds page without the caller having to repeat itself.
+    - There is no `RegisterPage` export in v1/v2. Accepting arbitrary
+      external HTML/content into the NUI would mean either trusting other
+      resources' markup (a real injection risk, see SECURITY.md) or
+      building a whole mini content-schema for free-form pages - both are
+      out of scope for an information hub. `AddAnnouncement` and `SetStat`
+      (plus their Update* counterparts) cover the realistic "another
+      resource wants to show something" use cases without that risk.
 ]]
 
 HS = HS or {}
 HS.Registry = {
-    commands = {},   -- id -> item
+    commands = {},   -- id -> item (item.owner = registering resource)
     keybinds = {},   -- id -> item
     announcements = {}, -- id -> item
-    stats = {},      -- key -> { key, label, value }
+    stats = {},      -- key -> { key, label, value, owner }
 }
+
+local UNOWNED = 'unknown'
 
 local function debugLog(fmt, ...)
     if Config and Config.General and Config.General.Debug then
@@ -34,9 +48,9 @@ end
 
 --- Registers `item` into `store` keyed by `item.id`, refusing to overwrite
 --- an id already present in `store` or in `staticIds` (ids owned by
---- config.lua for that same section).
+--- config.lua for that same section). Stamps `item.owner`.
 --- @return boolean ok, string|nil reason
-local function register(store, staticIds, requiredFields, item)
+local function register(store, staticIds, requiredFields, item, owner)
     if type(item) ~= 'table' then
         return false, 'expected a table'
     end
@@ -50,16 +64,51 @@ local function register(store, staticIds, requiredFields, item)
         return false, string.format('id "%s" is already in use', item.id)
     end
 
+    item.owner = owner or UNOWNED
     store[item.id] = item
     return true, nil
 end
 
-local function remove(store, id)
+--- Overwrites an EXISTING dynamic entry in `store`, only if it was
+--- registered by the same `owner`. Never touches a static config.lua
+--- entry (those never appear in `store` in the first place).
+--- @return boolean ok, string|nil reason
+local function update(store, requiredFields, item, owner)
+    if type(item) ~= 'table' then
+        return false, 'expected a table'
+    end
+
+    local ok, missing = HS.Validate.requireFields(item, requiredFields)
+    if not ok then
+        return false, string.format('missing required field "%s"', missing)
+    end
+
+    local existing = store[item.id]
+    if not existing then
+        return false, string.format('no entry with id "%s" to update (use Register* for a new entry)', tostring(item.id))
+    end
+
+    local ownerName = owner or UNOWNED
+    if existing.owner ~= ownerName then
+        return false, string.format('id "%s" is owned by a different resource', item.id)
+    end
+
+    item.owner = ownerName
+    store[item.id] = item
+    return true, nil
+end
+
+local function remove(store, id, owner)
     if type(id) ~= 'string' or id == '' then
         return false, 'id must be a non-empty string'
     end
-    if not store[id] then
+    local existing = store[id]
+    if not existing then
         return false, 'no entry with that id'
+    end
+    local ownerName = owner or UNOWNED
+    if type(existing) == 'table' and existing.owner and existing.owner ~= ownerName then
+        return false, string.format('id "%s" is owned by a different resource', id)
     end
     store[id] = nil
     return true, nil
@@ -85,43 +134,90 @@ local function idSet(list)
     return set
 end
 
-function HS.Registry.registerCommand(item, staticCommandItems)
+function HS.Registry.registerCommand(item, staticCommandItems, owner)
     local ok, reason = register(
         HS.Registry.commands,
         idSet(staticCommandItems),
         { 'id', 'command', 'title', 'description', 'category' },
-        item
+        item,
+        owner
     )
-    if ok then debugLog('registered command %s (%s)', item.id, item.command)
+    if ok then debugLog('registered command %s (%s) [%s]', item.id, item.command, item.owner)
     else debugLog('rejected command registration: %s', reason) end
     return ok, reason
 end
 
-function HS.Registry.registerKeybind(item, staticKeybindItems)
+function HS.Registry.updateCommand(item, owner)
+    local ok, reason = update(
+        HS.Registry.commands,
+        { 'id', 'command', 'title', 'description', 'category' },
+        item,
+        owner
+    )
+    if ok then debugLog('updated command %s', item.id)
+    else debugLog('rejected command update: %s', reason) end
+    return ok, reason
+end
+
+function HS.Registry.registerKeybind(item, staticKeybindItems, owner)
+    if type(item) == 'table' and item.resource == nil then
+        item.resource = owner
+    end
     local ok, reason = register(
         HS.Registry.keybinds,
         idSet(staticKeybindItems),
         { 'id', 'key', 'title', 'description', 'category' },
-        item
+        item,
+        owner
     )
-    if ok then debugLog('registered keybind %s (%s)', item.id, item.key)
+    if ok then debugLog('registered keybind %s (%s) [%s]', item.id, item.key, item.owner)
     else debugLog('rejected keybind registration: %s', reason) end
     return ok, reason
 end
 
-function HS.Registry.addAnnouncement(item, staticNewsItems)
+function HS.Registry.updateKeybind(item, owner)
+    local ok, reason = update(
+        HS.Registry.keybinds,
+        { 'id', 'key', 'title', 'description', 'category' },
+        item,
+        owner
+    )
+    if ok then debugLog('updated keybind %s', item.id)
+    else debugLog('rejected keybind update: %s', reason) end
+    return ok, reason
+end
+
+function HS.Registry.addAnnouncement(item, staticNewsItems, owner)
     local ok, reason = register(
         HS.Registry.announcements,
         idSet(staticNewsItems),
         { 'id', 'title', 'date', 'description' },
-        item
+        item,
+        owner
     )
-    if ok then debugLog('added announcement %s', item.id)
+    if ok then debugLog('added announcement %s [%s]', item.id, item.owner)
     else debugLog('rejected announcement: %s', reason) end
     return ok, reason
 end
 
-function HS.Registry.setStat(key, label, value)
+function HS.Registry.updateAnnouncement(item, owner)
+    local ok, reason = update(
+        HS.Registry.announcements,
+        { 'id', 'title', 'date', 'description' },
+        item,
+        owner
+    )
+    if ok then debugLog('updated announcement %s', item.id)
+    else debugLog('rejected announcement update: %s', reason) end
+    return ok, reason
+end
+
+--- Unlike the other Register* exports, calling this again with the same
+--- `key` UPDATES the existing entry rather than being rejected as a
+--- duplicate - that's the intended way to keep a live value (like a queue
+--- length) current. `UpdateStat` in server.lua is simply an alias for this
+--- for API-naming consistency; both behave identically.
+function HS.Registry.setStat(key, label, value, owner)
     if type(key) ~= 'string' or key == '' then
         return false, 'key must be a non-empty string'
     end
@@ -131,17 +227,22 @@ function HS.Registry.setStat(key, label, value)
     if value == nil then
         return false, 'value is required'
     end
-    HS.Registry.stats[key] = { key = key, label = label, value = value }
-    debugLog('set stat %s = %s', key, tostring(value))
+    local existing = HS.Registry.stats[key]
+    local ownerName = owner or UNOWNED
+    if existing and existing.owner and existing.owner ~= ownerName then
+        return false, string.format('stat "%s" is owned by a different resource', key)
+    end
+    HS.Registry.stats[key] = { key = key, label = label, value = value, owner = ownerName }
+    debugLog('set stat %s = %s [%s]', key, tostring(value), ownerName)
     return true, nil
 end
 
 --- `kind` is one of: 'command', 'keybind', 'announcement', 'stat'.
-function HS.Registry.removeEntry(kind, id)
-    if kind == 'command' then return remove(HS.Registry.commands, id) end
-    if kind == 'keybind' then return remove(HS.Registry.keybinds, id) end
-    if kind == 'announcement' then return remove(HS.Registry.announcements, id) end
-    if kind == 'stat' then return remove(HS.Registry.stats, id) end
+function HS.Registry.removeEntry(kind, id, owner)
+    if kind == 'command' then return remove(HS.Registry.commands, id, owner) end
+    if kind == 'keybind' then return remove(HS.Registry.keybinds, id, owner) end
+    if kind == 'announcement' then return remove(HS.Registry.announcements, id, owner) end
+    if kind == 'stat' then return remove(HS.Registry.stats, id, owner) end
     return false, 'unknown kind: ' .. tostring(kind)
 end
 

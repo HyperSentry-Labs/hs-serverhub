@@ -7,7 +7,18 @@ export type NuiMessage =
   | { type: 'contentUpdate'; payload: ContentPayload }
   | { type: 'statusUpdate'; payload: StatusSnapshot };
 
+export type NuiMessageType = NuiMessage['type'];
 export type NuiMessageHandler = (message: NuiMessage) => void;
+
+/** Names of the NUI callbacks registered in client.lua. */
+export type NuiCallbackName = 'close' | 'refresh';
+
+/** Every NUI callback answers with this shape (client.lua always calls `cb`). */
+export interface NuiCallbackResult {
+  ok: boolean;
+  /** Present when `ok` is false and the failure was diagnosed on our side (timeout, network). */
+  reason?: 'timeout' | 'network' | 'http';
+}
 
 /**
  * Everything the UI needs from "the outside world", whether that's a real

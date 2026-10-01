@@ -20,3 +20,8 @@ export function getBridge(): ServerHubBridge {
   }
   return cachedBridge;
 }
+
+/** Test-only: drop the cached bridge so the next getBridge() starts a fresh session. */
+export function resetBridgeForTests(): void {
+  cachedBridge = null;
+}

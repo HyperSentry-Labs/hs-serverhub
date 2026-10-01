@@ -91,6 +91,110 @@ do
     check('exposes stats registered earlier in this run', #snap.stats == 1)
 end
 
+print('registry ownership')
+do
+    local ok1 = HS.Registry.registerCommand({
+        id = 'cmd-owned', command = '/owned', title = 'Owned', description = 'x', category = 'general',
+    }, {}, 'resource-a')
+    check('registers with an explicit owner', ok1 == true)
+
+    local ok2, reason2 = HS.Registry.removeEntry('command', 'cmd-owned', 'resource-b')
+    check('refuses removal by a different resource', ok2 == false and reason2:find('owned by a different resource') ~= nil)
+
+    local ok3 = HS.Registry.removeEntry('command', 'cmd-owned', 'resource-a')
+    check('allows removal by the original owner', ok3 == true)
+end
+
+print('registry.registerKeybind stamps a default `resource` from the owner')
+do
+    HS.Registry.registerKeybind({
+        id = 'key-owned', key = 'H', title = 'Honk', description = 'x', category = 'core',
+    }, {}, 'my-vehicles')
+    local snap = HS.Registry.snapshot()
+    local found
+    for _, k in ipairs(snap.keybinds) do
+        if k.id == 'key-owned' then found = k end
+    end
+    check('defaults the `resource` display field to the registering resource', found ~= nil and found.resource == 'my-vehicles')
+
+    HS.Registry.registerKeybind({
+        id = 'key-owned-explicit', key = 'J', title = 'Jump', description = 'x', category = 'core', resource = 'explicit-name',
+    }, {}, 'my-vehicles')
+    local found2
+    for _, k in ipairs(HS.Registry.snapshot().keybinds) do
+        if k.id == 'key-owned-explicit' then found2 = k end
+    end
+    check('never overrides an explicitly provided `resource`', found2 ~= nil and found2.resource == 'explicit-name')
+end
+
+print('registry.updateCommand')
+do
+    HS.Registry.registerCommand({
+        id = 'cmd-update-me', command = '/old', title = 'Old title', description = 'x', category = 'general',
+    }, {}, 'resource-a')
+
+    local ok1, reason1 = HS.Registry.updateCommand({
+        id = 'cmd-update-me', command = '/old', title = 'New title', description = 'x', category = 'general',
+    }, 'resource-b')
+    check('refuses an update from a different resource', ok1 == false and reason1:find('owned by a different resource') ~= nil)
+
+    local ok2 = HS.Registry.updateCommand({
+        id = 'cmd-update-me', command = '/old', title = 'New title', description = 'x', category = 'general',
+    }, 'resource-a')
+    check('allows an update from the original owner', ok2 == true)
+
+    local snap = HS.Registry.snapshot()
+    local found
+    for _, c in ipairs(snap.commands) do
+        if c.id == 'cmd-update-me' then found = c end
+    end
+    check('the update actually changed the stored data', found ~= nil and found.title == 'New title')
+
+    local ok3, reason3 = HS.Registry.updateCommand({
+        id = 'cmd-does-not-exist', command = '/x', title = 'x', description = 'x', category = 'general',
+    }, 'resource-a')
+    check('refuses to update an entry that was never registered', ok3 == false and reason3:find('no entry with id') ~= nil)
+end
+
+print('registry.updateKeybind and updateAnnouncement follow the same ownership rule')
+do
+    HS.Registry.registerKeybind({
+        id = 'key-update-me', key = 'K', title = 'Old', description = 'x', category = 'core',
+    }, {}, 'resource-a')
+    local okBad = HS.Registry.updateKeybind({
+        id = 'key-update-me', key = 'K', title = 'New', description = 'x', category = 'core',
+    }, 'resource-b')
+    check('refuses a keybind update from a different resource', okBad == false)
+    local okGood = HS.Registry.updateKeybind({
+        id = 'key-update-me', key = 'K', title = 'New', description = 'x', category = 'core',
+    }, 'resource-a')
+    check('allows a keybind update from the original owner', okGood == true)
+
+    HS.Registry.addAnnouncement({
+        id = 'news-update-me', title = 'Old', date = '2026-09-01', description = 'x',
+    }, {}, 'resource-a')
+    local okBad2 = HS.Registry.updateAnnouncement({
+        id = 'news-update-me', title = 'New', date = '2026-09-01', description = 'x',
+    }, 'resource-b')
+    check('refuses an announcement update from a different resource', okBad2 == false)
+    local okGood2 = HS.Registry.updateAnnouncement({
+        id = 'news-update-me', title = 'New', date = '2026-09-01', description = 'x',
+    }, 'resource-a')
+    check('allows an announcement update from the original owner', okGood2 == true)
+end
+
+print('registry.setStat ownership')
+do
+    local ok1 = HS.Registry.setStat('queue-owned', 'Queue', 1, 'resource-a')
+    check('sets a stat with an owner', ok1 == true)
+
+    local ok2, reason2 = HS.Registry.setStat('queue-owned', 'Queue', 2, 'resource-b')
+    check('refuses to overwrite a stat owned by a different resource', ok2 == false and reason2:find('owned by a different resource') ~= nil)
+
+    local ok3 = HS.Registry.setStat('queue-owned', 'Queue', 3, 'resource-a')
+    check('allows the original owner to keep updating its own stat', ok3 == true)
+end
+
 print(string.format('\n%d passed, %d failed', passed, failures))
 if failures > 0 then
     os.exit(1)

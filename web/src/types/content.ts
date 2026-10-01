@@ -17,10 +17,25 @@ export interface LinksConfig {
   Support?: string;
 }
 
+export type SectionId =
+  | 'overview'
+  | 'rules'
+  | 'commands'
+  | 'keybinds'
+  | 'getting-started'
+  | 'news'
+  | 'community';
+
+/**
+ * A quick action tile on Overview. `type` defaults to 'section' (v0.1
+ * shape: jump to a built-in section). 'url' opens an external link.
+ */
 export interface QuickLink {
   id: string;
   label: string;
-  target: SectionId;
+  type?: 'section' | 'url';
+  target?: SectionId;
+  url?: string;
   icon?: string;
 }
 
@@ -32,6 +47,7 @@ export interface OverviewConfig {
 }
 
 export type Severity = 'info' | 'warning' | 'critical';
+export type Priority = 'normal' | 'important' | 'critical';
 
 export interface Category {
   id: string;
@@ -57,6 +73,9 @@ export interface CommandItem {
   permission?: string;
   icon?: string;
   aliases?: string[];
+  usage?: string;
+  /** Optional related key label, e.g. "F6" - informational only. */
+  keybind?: string;
 }
 
 export interface KeybindItem {
@@ -66,6 +85,8 @@ export interface KeybindItem {
   description: string;
   category: string;
   icon?: string;
+  context?: string;
+  resource?: string;
 }
 
 export interface GettingStartedStep {
@@ -76,6 +97,7 @@ export interface GettingStartedStep {
   linkLabel?: string;
   linkTarget?: SectionId;
   linkUrl?: string;
+  estimatedMinutes?: number;
 }
 
 export interface NewsItem {
@@ -86,6 +108,9 @@ export interface NewsItem {
   category?: string;
   version?: string;
   url?: string;
+  priority?: Priority;
+  featured?: boolean;
+  icon?: string;
 }
 
 export interface CommunityLink {
@@ -96,15 +121,23 @@ export interface CommunityLink {
   description?: string;
 }
 
+export interface CommunityGroup {
+  id: string;
+  label: string;
+  links: CommunityLink[];
+}
+
 export interface StatItem {
   key: string;
   label: string;
   value: string | number;
 }
 
+export type ResourceState = 'started' | 'starting' | 'stopped' | 'unknown';
+
 export interface MonitoredResourceStatus {
   name: string;
-  running: boolean;
+  state: ResourceState;
 }
 
 export interface StatusSnapshot {
@@ -115,25 +148,27 @@ export interface StatusSnapshot {
   monitoredResources: MonitoredResourceStatus[];
 }
 
-export type SectionId =
-  | 'overview'
-  | 'rules'
-  | 'commands'
-  | 'keybinds'
-  | 'getting-started'
-  | 'news'
-  | 'community';
+export interface ThemeConfig {
+  AccentHover?: string;
+  Background?: string;
+  Surface?: string;
+  SurfaceRaised?: string;
+  Border?: string;
+  Text?: string;
+  Muted?: string;
+}
 
 export interface ContentPayload {
   general: GeneralConfig;
+  theme: ThemeConfig;
   links: LinksConfig;
   overview: OverviewConfig;
   rules: { categories: Category[]; items: RuleItem[] };
   commands: { categories: Category[]; items: CommandItem[] };
   keybinds: { categories: Category[]; items: KeybindItem[] };
-  gettingStarted: { steps: GettingStartedStep[] };
+  gettingStarted: { steps: GettingStartedStep[]; enableProgress: boolean };
   news: { items: NewsItem[] };
-  community: { links: CommunityLink[] };
+  community: { links: CommunityLink[]; groups: CommunityGroup[] };
   stats: StatItem[];
   status: { enabled: boolean; showUptime: boolean };
 }

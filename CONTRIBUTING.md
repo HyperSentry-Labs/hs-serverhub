@@ -10,7 +10,8 @@ Thanks for considering a contribution to ServerHub.
 - This is a **standalone information hub**, not a framework menu or an
   admin panel. Features that would require ESX/QBCore/Qbox/ox_core/vRP, or
   that add moderation/admin/economy/inventory functionality, are out of
-  scope - see the README's "Differentiation" section for why.
+  scope - see the README's opening description of what ServerHub is (and
+  is not) for why.
 
 ## Development setup
 

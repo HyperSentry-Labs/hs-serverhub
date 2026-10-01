@@ -27,6 +27,19 @@ if #HS.State.config.warnings > 0 then
     end
 end
 
+-- `GetInvokingResource` is a real shared Cfx native (see
+-- https://github.com/citizenfx/fivem/blob/master/ext/native-decls/GetInvokingResource.md)
+-- that reports which resource's script called into the current one - the
+-- standard way to identify the caller of an export from inside it. It only
+-- exists inside FiveM, so this wrapper falls back to a stable sentinel for
+-- the (Lua-only, no-FiveM) test suite and for any other unexpected context.
+local function invokingResource()
+    if type(GetInvokingResource) == 'function' then
+        return GetInvokingResource() or 'unknown'
+    end
+    return 'unknown'
+end
+
 -- ----------------------------------------------------------------------
 -- Content merging (static config + runtime exports() registrations)
 -- ----------------------------------------------------------------------
@@ -49,7 +62,8 @@ local function buildContent()
     return {
         general = Config.General,
         links = Config.Links,
-        overview = Config.Overview,
+        theme = HS.State.config.theme,
+        overview = HS.State.config.overview,
         rules = HS.State.config.rules,
         commands = {
             categories = HS.State.config.commands.categories,
@@ -79,7 +93,7 @@ local function buildStatusSnapshot()
     for _, name in ipairs(Config.Status.MonitoredResources or {}) do
         table.insert(resources, {
             name = name,
-            running = GetResourceState(name) == 'started',
+            state = HS.Validate.normalizeResourceState(GetResourceState(name)),
         })
     end
 
@@ -166,31 +180,58 @@ local function broadcastContentUpdate()
 end
 
 exports('RegisterCommandInfo', function(item)
-    local ok, reason = HS.Registry.registerCommand(item, HS.State.config.commands.items)
+    local ok, reason = HS.Registry.registerCommand(item, HS.State.config.commands.items, invokingResource())
+    if ok then broadcastContentUpdate() end
+    return ok, reason
+end)
+
+exports('UpdateCommandInfo', function(item)
+    local ok, reason = HS.Registry.updateCommand(item, invokingResource())
     if ok then broadcastContentUpdate() end
     return ok, reason
 end)
 
 exports('RegisterKeybind', function(item)
-    local ok, reason = HS.Registry.registerKeybind(item, HS.State.config.keybinds.items)
+    local ok, reason = HS.Registry.registerKeybind(item, HS.State.config.keybinds.items, invokingResource())
+    if ok then broadcastContentUpdate() end
+    return ok, reason
+end)
+
+exports('UpdateKeybind', function(item)
+    local ok, reason = HS.Registry.updateKeybind(item, invokingResource())
     if ok then broadcastContentUpdate() end
     return ok, reason
 end)
 
 exports('AddAnnouncement', function(item)
-    local ok, reason = HS.Registry.addAnnouncement(item, HS.State.config.news.items)
+    local ok, reason = HS.Registry.addAnnouncement(item, HS.State.config.news.items, invokingResource())
+    if ok then broadcastContentUpdate() end
+    return ok, reason
+end)
+
+exports('UpdateAnnouncement', function(item)
+    local ok, reason = HS.Registry.updateAnnouncement(item, invokingResource())
     if ok then broadcastContentUpdate() end
     return ok, reason
 end)
 
 exports('SetStat', function(key, label, value)
-    local ok, reason = HS.Registry.setStat(key, label, value)
+    local ok, reason = HS.Registry.setStat(key, label, value, invokingResource())
+    if ok then broadcastContentUpdate() end
+    return ok, reason
+end)
+
+-- Alias of SetStat: SetStat already upserts (see lua/registry.lua), so
+-- UpdateStat is provided purely for a consistent Register*/Update* naming
+-- convention across the API - both behave identically.
+exports('UpdateStat', function(key, label, value)
+    local ok, reason = HS.Registry.setStat(key, label, value, invokingResource())
     if ok then broadcastContentUpdate() end
     return ok, reason
 end)
 
 exports('RemoveEntry', function(kind, id)
-    local ok, reason = HS.Registry.removeEntry(kind, id)
+    local ok, reason = HS.Registry.removeEntry(kind, id, invokingResource())
     if ok then broadcastContentUpdate() end
     return ok, reason
 end)

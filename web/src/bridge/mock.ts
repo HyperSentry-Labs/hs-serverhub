@@ -1,33 +1,42 @@
 import type { NuiMessage, NuiMessageHandler, ServerHubBridge } from './types';
-import { demoContent, demoStatus } from '../mock/demoContent';
+import { getFixture } from '../mock/fixtures';
 
 /**
  * Simulates the FiveM client for `npm run dev`. Emits the same message
- * sequence a real session would (open -> bootstrap -> occasional
- * statusUpdate) using demo data, so every page can be built and reviewed
+ * sequence a real session would (open -> bootstrap -> statusUpdate) using
+ * demo data for a fictional server, so every page can be built and reviewed
  * without launching GTA V. See docs/development.md#browser-mode.
+ *
+ * Pick a representative data set with `?fixture=` (default, empty, minimal,
+ * long, many, rtl), e.g. http://localhost:5173/?fixture=rtl
  */
-export function createMockBridge(): ServerHubBridge {
+export function createMockBridge(search: string = typeof window === 'undefined' ? '' : window.location.search): ServerHubBridge {
+  const fixture = getFixture(new URLSearchParams(search).get('fixture'));
   const handlers = new Set<NuiMessageHandler>();
   const emit = (message: NuiMessage) => handlers.forEach((h) => h(message));
 
-  // Simulate the real open -> bootstrap -> statusUpdate sequence.
   setTimeout(() => emit({ type: 'open' }), 0);
-  setTimeout(() => emit({ type: 'bootstrap', payload: demoContent }), 30);
-  setTimeout(() => emit({ type: 'statusUpdate', payload: demoStatus }), 60);
+  setTimeout(() => emit({ type: 'bootstrap', payload: fixture.content }), 30);
+  if (fixture.status) {
+    const status = fixture.status;
+    setTimeout(() => emit({ type: 'statusUpdate', payload: status }), 60);
+  }
 
-  // Gentle live-looking fluctuation so the Overview page's status card
-  // doesn't look frozen during a demo, without implying real infrastructure.
-  const interval = setInterval(() => {
-    const drift = Math.floor(Math.random() * 5) - 2;
-    const online = Math.max(0, Math.min(demoStatus.max, demoStatus.online + drift));
-    emit({
-      type: 'statusUpdate',
-      payload: { ...demoStatus, online, uptimeSeconds: (demoStatus.uptimeSeconds ?? 0) + 8 },
-    });
-  }, 8000);
+  // Gentle live-looking fluctuation so the status card doesn't look frozen
+  // during a demo, without implying real infrastructure.
+  const interval = fixture.status
+    ? setInterval(() => {
+        const base = fixture.status!;
+        const drift = Math.floor(Math.random() * 5) - 2;
+        const online = Math.max(0, Math.min(base.max, base.online + drift));
+        emit({
+          type: 'statusUpdate',
+          payload: { ...base, online, uptimeSeconds: (base.uptimeSeconds ?? 0) + 8 },
+        });
+      }, 8000)
+    : undefined;
 
-  if (import.meta.hot) {
+  if (interval !== undefined && import.meta.hot) {
     import.meta.hot.dispose(() => clearInterval(interval));
   }
 
@@ -40,13 +49,12 @@ export function createMockBridge(): ServerHubBridge {
     },
 
     async close() {
-      // eslint-disable-next-line no-console
       console.info('[hs-serverhub mock] close() called - in FiveM this releases NUI focus.');
     },
 
     async refresh() {
-      emit({ type: 'contentUpdate', payload: demoContent });
-      emit({ type: 'statusUpdate', payload: demoStatus });
+      emit({ type: 'contentUpdate', payload: fixture.content });
+      if (fixture.status) emit({ type: 'statusUpdate', payload: fixture.status });
     },
   };
 }
