@@ -5,7 +5,7 @@ lua54 'yes'
 name 'hs-serverhub'
 author 'HyperSentry Labs'
 description 'ServerHub - an in-game information and onboarding hub for FiveM servers.'
-version '0.1.0'
+version '0.2.0'
 repository 'https://github.com/HyperSentry-Labs/hs-serverhub'
 
 -- Config is a shared script so both the client and the server read the

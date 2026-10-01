@@ -1,7 +1,7 @@
 {
   "name": "hs-serverhub",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "ServerHub - an in-game information and onboarding hub for FiveM servers, by HyperSentry Labs.",
   "scripts": {
     "postinstall": "npm run install:web",

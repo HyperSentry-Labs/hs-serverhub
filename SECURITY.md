@@ -22,9 +22,28 @@ sensitive:
   JSX escaping means there is no `dangerouslySetInnerHTML` anywhere in the
   codebase, so a malicious rule/command/news description cannot inject
   markup or scripts into the panel.
-- External links (Discord, website, etc.) are opened via standard
-  `target="_blank" rel="noopener noreferrer"` anchors, handled by FiveM's
-  CEF - there is no custom "open URL" native call to audit.
+- Every URL that could reach an `<a href>` or an external navigation
+  (community links, news "read more", getting-started external steps,
+  Overview quick actions) is validated as `http`/`https` in both
+  `lua/validate.lua` (server-side) and `web/src/lib/url.ts` (defense in
+  depth on the client): a `javascript:`, `data:`, or schemeless value is
+  refused rather than rendered as a live link. External links themselves
+  are opened via standard `target="_blank" rel="noopener noreferrer"`
+  anchors, handled by FiveM's CEF - there is no custom "open URL" native
+  call to audit.
+- Optional theme colors (`Config.Theme`, `Config.General.AccentColor`) are
+  validated as a plain hex or `rgb()`/`hsl()` color (`isValidColor` in
+  `lua/validate.lua`, mirrored in `web/src/lib/color.ts`) before being
+  written to a CSS custom property, so a malformed value can never inject
+  arbitrary CSS.
+- The developer API (`lua/registry.lua`) ties every dynamic registration
+  to the resource that created it (via `GetInvokingResource()`), so one
+  resource can never edit or remove another resource's registration by
+  guessing its `id` - see `docs/api.md`.
+- Player-specific conveniences added in v0.2.0 (pinned items, getting-
+  started progress) live entirely in the NUI browser's local storage: they
+  are never sent to or readable by the server, contain nothing but item
+  ids the player chose, and are not authoritative for anything.
 
 ## Reporting a vulnerability
 

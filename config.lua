@@ -8,10 +8,10 @@
     Every section below is documented in docs/configuration.md with the
     same field names, defaults and examples used here.
 
-    If you make a mistake (missing field, wrong type, duplicate id), the
-    resource will NOT crash. It will fall back to a safe default for that
-    item, skip the broken entry, and print a single warning line to the
-    server console when Config.General.Debug is true.
+    If you make a mistake (missing field, wrong type, duplicate id, unsafe
+    URL), the resource will NOT crash. It will fall back to a safe default
+    for that item, skip or repair the broken entry, and print a warning to
+    the server console when Config.General.Debug is true.
 ]]
 
 Config = {}
@@ -54,6 +54,24 @@ Config.General = {
 }
 
 -- ============================================================================
+-- THEME (optional)
+-- ============================================================================
+-- Rebrand without touching any CSS. AccentColor / AccentColorSecondary above
+-- stay the primary brand colors; these are optional fine-tuning tokens.
+-- Every value must be a hex color (#rgb, #rrggbb, #rrggbbaa) or an
+-- rgb()/rgba()/hsl()/hsla() color. An invalid value is ignored with a
+-- console warning and the default is used - it can never break the UI.
+Config.Theme = {
+    -- AccentHover = '#F0BA70',
+    -- Background = '#0F1216',
+    -- Surface = '#14171D',
+    -- SurfaceRaised = '#1B1F27',
+    -- Border = '#262B34',
+    -- Text = '#E8EAED',
+    -- Muted = '#939BA6',
+}
+
+-- ============================================================================
 -- LINKS (used by the header/footer "quick" links and Community page)
 -- ============================================================================
 Config.Links = {
@@ -71,17 +89,28 @@ Config.Overview = {
     -- Live player count / status card. Requires Config.Status.Enabled.
     ShowLiveStats = true,
 
-    -- Surface the single most recent Config.News item on the Overview hero.
+    -- Surface the newest Config.News item on the Overview hero - or, if any
+    -- news item has `featured = true`, the newest featured one instead.
     ShowLatestAnnouncement = true,
 
-    -- Shortcut tiles under the hero. `target` must be one of the built-in
-    -- section ids: overview, rules, commands, keybinds, getting-started,
-    -- news, community.
+    -- Shortcut tiles under the hero - these double as ServerHub's "quick
+    -- actions". Each entry is one of two shapes:
+    --   type = 'section' (default, and the only shape v0.1 supported):
+    --     jumps to a built-in section. `target` must be one of: overview,
+    --     rules, commands, keybinds, getting-started, news, community.
+    --   type = 'url':
+    --     opens an external link (Discord, website, ticket system, ...) in
+    --     the player's browser instead of navigating inside ServerHub.
+    --     Requires a `url` (http/https only - anything else is dropped).
     QuickLinks = {
         { id = 'ql-rules', label = 'Rules', target = 'rules', icon = 'shield' },
         { id = 'ql-commands', label = 'Commands', target = 'commands', icon = 'terminal' },
         { id = 'ql-keybinds', label = 'Keybinds', target = 'keybinds', icon = 'keyboard' },
         { id = 'ql-start', label = 'Getting Started', target = 'getting-started', icon = 'compass' },
+        {
+            id = 'ql-discord', label = 'Join Discord', icon = 'discord',
+            type = 'url', url = 'https://discord.gg/example',
+        },
     },
 }
 
@@ -100,7 +129,9 @@ Config.Status = {
     ShowUptime = true,
 
     -- Optional health snapshot. Leave the table empty to hide this card
-    -- entirely. Only resources you list here are ever queried.
+    -- entirely. Only resources you list here are ever queried, with
+    -- GetResourceState() bucketed into 'started' | 'starting' | 'stopped' |
+    -- 'unknown' so an unexpected value never breaks the display.
     MonitoredResources = {
         -- 'ox_lib',
         -- 'my-police',
@@ -121,7 +152,9 @@ Config.Rules = {
         { id = 'vehicles', label = 'Vehicles', icon = 'car' },
     },
 
-    -- severity: 'info' | 'warning' | 'critical' (optional, defaults to 'info')
+    -- severity: 'info' | 'warning' | 'critical' (optional, defaults to
+    -- 'info'; an unrecognized value also falls back to 'info' with a
+    -- console warning rather than being dropped).
     Items = {
         {
             id = 'general-1',
@@ -204,6 +237,9 @@ Config.Commands = {
     -- `permission` is a display-only label (e.g. "Everyone", "Staff").
     -- It is NOT an access control system - ServerHub never grants or
     -- checks permissions, it only documents them for players.
+    -- `usage` is an optional one-line example shown as a code block, e.g.
+    -- "/report [message]" - only set it when the command actually takes
+    -- arguments; never invent server-specific syntax automatically.
     Items = {
         {
             id = 'cmd-report',
@@ -213,6 +249,7 @@ Config.Commands = {
                 'detail as you can.',
             category = 'general',
             permission = 'Everyone',
+            usage = '/report [message]',
         },
         {
             id = 'cmd-911',
@@ -231,6 +268,7 @@ Config.Commands = {
                 '"/me lights a cigarette".',
             category = 'roleplay',
             permission = 'Everyone',
+            usage = '/me [action]',
         },
         {
             id = 'cmd-do',
@@ -264,14 +302,21 @@ Config.Keybinds = {
     -- This is a directory only - ServerHub does not bind these keys itself.
     -- Register the real key mappings from the resource that owns each
     -- feature. See docs/api.md if you want that resource to appear here
-    -- automatically via exports instead of editing this file.
+    -- automatically via exports instead of editing this file - a
+    -- dynamically-registered keybind is stamped with the registering
+    -- resource's name in `resource` automatically if you don't set one.
+    -- `context` is an optional short note (e.g. "Hold", "Duty only").
     Items = {
         { id = 'key-phone', key = 'F1', title = 'Phone', description = 'Open your phone.', category = 'core' },
         { id = 'key-inventory', key = 'F2', title = 'Inventory', description = 'Open your inventory.', category = 'core' },
         { id = 'key-radio', key = 'F3', title = 'Radio', description = 'Open your radio.', category = 'core' },
-        { id = 'key-police-menu', key = 'F6', title = 'Police Menu', description = 'Duty-only police tools.', category = 'emergency' },
+        {
+            id = 'key-police-menu', key = 'F6', title = 'Police Menu',
+            description = 'Duty-only police tools.', category = 'emergency',
+            resource = 'my-police', context = 'Duty only',
+        },
         { id = 'key-interact', key = 'G', title = 'Vehicle interaction', description = 'Lock, engine, and trunk controls.', category = 'core' },
-        { id = 'key-hands-up', key = 'X', title = 'Hands up', description = 'Raise your hands during roleplay.', category = 'roleplay' },
+        { id = 'key-hands-up', key = 'X', title = 'Hands up', description = 'Raise your hands during roleplay.', category = 'roleplay', context = 'Hold' },
     },
 }
 
@@ -279,12 +324,19 @@ Config.Keybinds = {
 -- GETTING STARTED
 -- ============================================================================
 Config.GettingStarted = {
+    -- Per-player step completion is tracked client-side only (the browser/
+    -- CEF's own storage) - ServerHub has no player database, so this is a
+    -- personal convenience, never a server-authoritative record. Set to
+    -- false to show a plain numbered list with no checkboxes/progress bar.
+    EnableProgress = true,
+
     Steps = {
         {
             id = 'step-character',
             title = 'Create your character',
             description = 'Build your character and pick your starting appearance.',
             icon = 'user-plus',
+            estimatedMinutes = 3,
         },
         {
             id = 'step-id',
@@ -300,6 +352,7 @@ Config.GettingStarted = {
             icon = 'shield',
             linkLabel = 'Open Rules',
             linkTarget = 'rules',
+            estimatedMinutes = 5,
         },
         {
             id = 'step-job',
@@ -314,6 +367,7 @@ Config.GettingStarted = {
             icon = 'keyboard',
             linkLabel = 'Open Keybinds',
             linkTarget = 'keybinds',
+            estimatedMinutes = 2,
         },
         {
             id = 'step-discord',
@@ -334,6 +388,10 @@ Config.GettingStarted.Steps[6].linkUrl = Config.Links.Discord
 -- NEWS / CHANGELOG
 -- ============================================================================
 Config.News = {
+    -- priority: 'normal' | 'important' | 'critical' (optional, defaults to
+    -- 'normal'). Shown as a small, non-alarmist label - not a flashing
+    -- banner. `featured = true` lets an item win the Overview "latest
+    -- announcement" slot over a newer-but-unfeatured one.
     Items = {
         {
             id = 'news-launch',
@@ -341,6 +399,7 @@ Config.News = {
             date = '2026-08-01',
             category = 'Announcement',
             description = 'Whitelist is open and the city is live. Welcome aboard.',
+            icon = 'announcement',
         },
         {
             id = 'news-police',
@@ -358,6 +417,15 @@ Config.News = {
             category = 'Update',
             description = 'Rebalanced job payouts and reduced high-end item prices.',
         },
+        {
+            id = 'news-maintenance',
+            title = 'Scheduled maintenance this weekend',
+            date = '2026-09-05',
+            category = 'Maintenance',
+            description = 'The server will be offline for about 30 minutes for a database upgrade.',
+            priority = 'important',
+            featured = true,
+        },
     },
 }
 
@@ -365,9 +433,26 @@ Config.News = {
 -- COMMUNITY
 -- ============================================================================
 Config.Community = {
+    -- Flat list - always available, and the only shape v0.1 supported.
+    -- Rendered as-is when Groups (below) is empty.
     Links = {
         { id = 'com-discord', label = 'Discord', url = Config.Links.Discord, icon = 'discord', description = 'Chat with staff and the community.' },
         { id = 'com-website', label = 'Website', url = Config.Links.Website, icon = 'globe', description = 'Server news and whitelist application.' },
         { id = 'com-support', label = 'Support', url = Config.Links.Support, icon = 'life-buoy', description = 'Open a support ticket.' },
+    },
+
+    -- Optional grouped layout ("Community" / "Support" / "Store", etc.).
+    -- When non-empty, the Community page renders these groups instead of
+    -- the flat list above. Leave this empty (the default) to keep the
+    -- simple flat layout - most servers don't need groups.
+    Groups = {
+        -- {
+        --     id = 'support',
+        --     label = 'Support',
+        --     Links = {
+        --         { id = 'grp-tickets', label = 'Ticket System', url = 'https://example.com/support', icon = 'life-buoy' },
+        --         { id = 'grp-docs', label = 'Documentation', url = 'https://example.com/docs', icon = 'book' },
+        --     },
+        -- },
     },
 }

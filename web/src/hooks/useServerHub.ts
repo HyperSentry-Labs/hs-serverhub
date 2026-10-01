@@ -6,6 +6,8 @@ import type { ContentPayload, SectionId, StatusSnapshot } from '../types/content
 export interface ServerHubState {
   isOpen: boolean;
   isFiveM: boolean;
+  /** False until the first bootstrap payload arrives from the server. */
+  isLoaded: boolean;
   content: ContentPayload;
   status: StatusSnapshot | null;
   section: SectionId;
@@ -19,6 +21,7 @@ export interface ServerHubState {
 export function useServerHub(): ServerHubState {
   const bridge = useMemo(() => getBridge(), []);
   const [isOpen, setIsOpen] = useState(bridge.isFiveM ? false : true);
+  const [isLoaded, setIsLoaded] = useState(false);
   const [content, setContent] = useState<ContentPayload>(() => normalizeContent(null));
   const [status, setStatus] = useState<StatusSnapshot | null>(null);
   const [section, setSection] = useState<SectionId>('overview');
@@ -34,6 +37,9 @@ export function useServerHub(): ServerHubState {
           setIsOpen(false);
           break;
         case 'bootstrap':
+          setContent(normalizeContent(message.payload));
+          setIsLoaded(true);
+          break;
         case 'contentUpdate':
           setContent(normalizeContent(message.payload));
           break;
@@ -56,6 +62,7 @@ export function useServerHub(): ServerHubState {
   return {
     isOpen,
     isFiveM: bridge.isFiveM,
+    isLoaded,
     content,
     status,
     section,

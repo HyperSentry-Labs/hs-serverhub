@@ -14,6 +14,7 @@ export default {
         },
         accent: {
           DEFAULT: 'var(--hs-accent)',
+          hover: 'var(--hs-accent-hover)',
           secondary: 'var(--hs-accent-secondary)',
         },
         status: {

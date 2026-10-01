@@ -3,7 +3,6 @@ node_modules/
 
 # Build output (checked in only for release ZIPs, not for git history)
 web/dist/
-GITHUB_METADATA.md
 
 # Editors / OS
 .vscode/
@@ -14,6 +13,9 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+
+# TypeScript incremental build cache
+*.tsbuildinfo
 
 # Env
 .env
